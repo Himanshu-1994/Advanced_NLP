@@ -8,6 +8,8 @@ from torch.utils.data import TensorDataset, DataLoader, RandomSampler, Sequentia
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 from sklearn.metrics import classification_report, confusion_matrix, f1_score, precision_score, recall_score, accuracy_score
 from sklearn.utils import resample
+from model_xed import BertForMultiLabelClassification
+
 
 LOAD_FROM_LOCAL = True
 
@@ -196,8 +198,16 @@ else:
     print('No GPU available, using the CPU instead.')
     device = torch.device("cpu")
 
+def convert_to_one_hot_label(labs):
+  one_hot_label = [0] * 7
+  for l in labs:
+    one_hot_label[l] = 1
+  return one_hot_label
 
 def prepare_data(sentences, labels, random_sampling=False):
+  #labels = [int(s.split(",")[0]) for s in labels]
+  labels = [list(map(int,s.split(","))) for s in labels]
+  labels = [convert_to_one_hot_label(l) for l in labels]
   input_ids=[]
   attention_masks = []
   for sentence in sentences:
@@ -208,8 +218,9 @@ def prepare_data(sentences, labels, random_sampling=False):
   # Convert numpy arrays to pytorch tensors
   inputs = torch.cat(input_ids, dim=0)
   masks =  torch.cat(attention_masks, dim=0)
-  labels = torch.tensor(labels)
+  labels = torch.tensor(labels,dtype=torch.float32)
 
+  print("shape of labels = ", labels.shape)
   # Create the DataLoader for the given set (iterator to save memory)
   data = TensorDataset(inputs, masks, labels)
   if random_sampling: # train data
@@ -251,7 +262,8 @@ def train(model, optimizer, scheduler, train_dataloader, dev_dataloader, epochs,
 
           # Perform a forward pass (evaluate the model on this training batch).
           loss, logits = model(b_input_ids, token_type_ids=None, attention_mask=b_input_mask, labels=b_labels)
-
+          print(loss)
+          print(logits)
           # Accumulate the training loss over all of the batches so that we can calculate the average loss at the end.
           total_train_loss += loss.item()
 
@@ -270,7 +282,7 @@ def train(model, optimizer, scheduler, train_dataloader, dev_dataloader, epochs,
       # Measure how long this epoch took.
       training_time = format_time(time.time() - t0)
       if verbose: print("  Training epcoh took: {:}".format(training_time))
-
+      """
       ########## VALIDATION ##########
       t0 = time.time()
       model.eval() # Put the model in evaluation mode--the dropout layers behave differently during evaluation.
@@ -310,8 +322,11 @@ def train(model, optimizer, scheduler, train_dataloader, dev_dataloader, epochs,
       # Measure how long the validation run took.
       validation_time = format_time(time.time() - t0)
       if verbose: print("  Validation took: {:}".format(validation_time))  
-
+      """
       # Record all statistics from this epoch.
+      avg_val_accuracy = 0
+      avg_val_loss = 0
+      validation_time = 0
       training_stats.append(
           {
               'epoch': epoch_i + 1,
@@ -322,6 +337,7 @@ def train(model, optimizer, scheduler, train_dataloader, dev_dataloader, epochs,
               'Valid Time': validation_time
           }
       )
+      
 
   print("\nTraining complete!")
   print("Total training took {:} (h:mm:ss)".format(format_time(time.time()-total_t0)))
@@ -331,9 +347,10 @@ def train(model, optimizer, scheduler, train_dataloader, dev_dataloader, epochs,
   return df_stats
 
 
-df_dataset = pd.read_csv("AnnotatedData/en-annotated.tsv", delimiter='\t', header=None, names=['sentence','label']).sample(frac=1, random_state=SEED)
-df_dataset["label"].replace({8: 0}, inplace=True)
-NUM_CLASSES = len(df_dataset.groupby('label'))
+df_dataset = pd.read_csv("AnnotatedData/ekman-en-annotated.tsv", delimiter='\t', header=None, names=['sentence','label']).sample(frac=1, random_state=SEED)
+#df_dataset["label"].replace({8: 0}, inplace=True)
+#NUM_CLASSES = len(df_dataset.groupby('label'))
+NUM_CLASSES = 7
 
 df_train, df_dev, df_test = np.split(df_dataset, [int(PCTG_TRAIN*len(df_dataset)), int((1-PCTG_TEST)*len(df_dataset))])
 
@@ -349,19 +366,52 @@ print('Number of sentences dev set:   {:,}'.format(len(X_dev)))
 print('Number of sentences test set:  {:,}'.format(len(X_test)))
 print("Number of classes: {}".format(NUM_CLASSES))
 
-plot_value_counts(df_dataset, title="Value counts labels full dataset")
+#plot_value_counts(df_dataset, title="Value counts labels full dataset")
 
 bert_model = models[BERT_MODEL][0]
 lowercase = models[BERT_MODEL][1]
 
-model = BertForSequenceClassification.from_pretrained(pretrained_model_name_or_path=bert_model, num_labels=NUM_CLASSES, output_attentions=False, output_hidden_states=False)
+config = BertConfig.from_pretrained(
+    bert_model,
+    num_labels=7,
+)
+
+model = BertForMultiLabelClassification.from_pretrained(
+    bert_model,
+    config=config
+)
+    
+#model = BertForSequenceClassification.from_pretrained(pretrained_model_name_or_path=bert_model, num_labels=NUM_CLASSES, output_attentions=False, output_hidden_states=False)
 model.cuda() # Tell pytorch to run this model on the GPU.
 
 print_model_params(model)
 
 
 tokenizer = BertTokenizer.from_pretrained(bert_model, do_lower_case=lowercase)
-print('Text will be split into tokens using the', bert_model,'built-in tokenizer.\n')
+#print('Text will be split into tokens using the', bert_model,'built-in tokenizer.\n')
 
-print("lntiaanirenki, juoppo pyssymies, seksihullu ja eno! \U0001F648")
-print(tokenizer.tokenize("lntiaanirenki, juoppo pyssymies, seksihullu ja eno! \U0001F648"))
+#print("lntiaanirenki, juoppo pyssymies, seksihullu ja eno! \U0001F648")
+#print(tokenizer.tokenize("lntiaanirenki, juoppo pyssymies, seksihullu ja eno! \U0001F648"))
+
+
+lengths = []
+for sent in X_train:
+  input_ids = tokenizer.encode(sent, add_special_tokens=True)
+  l = min(MAX_LEN, len(input_ids))
+  lengths.append(l)
+
+
+train_dataloader      = prepare_data(X_train, y_train, True)
+dev_dataloader        = prepare_data(X_dev, y_dev, False)
+prediction_dataloader = prepare_data(X_test, y_test, False)
+
+
+adam         = AdamW(model.parameters(), lr=LEARN_RATE, eps=EPSILON)
+total_steps  = len(train_dataloader) * EPOCHS # Total number of training steps is nb_batches times nb_epochs.
+linear_sch   = get_linear_schedule_with_warmup(adam, num_warmup_steps=nb_warmup_steps, num_training_steps=total_steps)
+
+training_stats = train(model=model, optimizer=adam, train_dataloader=train_dataloader, dev_dataloader=dev_dataloader, 
+                       epochs=EPOCHS, verbose=True, scheduler=linear_sch)
+
+plot_loss(training_stats)
+training_stats
