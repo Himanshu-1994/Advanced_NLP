@@ -10,75 +10,9 @@ from sklearn.metrics import classification_report, confusion_matrix, f1_score, p
 from sklearn.utils import resample
 from model_xed import BertForMultiLabelClassification
 
+from misc import *
 
-LOAD_FROM_LOCAL = True
-
-
-def plot_lengths_distribution(lengths, title="Length distribution of tokenized sentences"):
-  sns.set(style="darkgrid")
-  sns.set(font_scale=1.5)
-  plt.rcParams["figure.figsize"]=(10,5)
-  lengths = [min(length,MAX_LEN) for length in lengths]
-  ax = sns.distplot(lengths,kde=False,rug=False, hist_kws={"rwidth":5,'edgecolor':'black', 'alpha':1.0}) 
-  plt.title("Sequence length distribution")
-  plt.xlabel("Sequence Length")
-  plt.ylabel("Counts")
-
-  num_truncated = lengths.count(MAX_LEN)
-  num_sentences = len(lengths)
-  print("{:.1%} of the training examples ({:,} of them) have more than {:,} tokens".format(float(num_truncated)/float(num_sentences),num_truncated,MAX_LEN))
-
-def plot_value_counts(df, title="Label distribution"):
-  emotions = ['TRUST','ANGRY','ANTICIP.','DISGUST','FEAR','JOY','SADNESS','SURPRISE']
-  df2 = df.replace([0,1,2,3,4,5,6,7], emotions)
-  df2.label.value_counts(normalize=False).sort_index().plot(kind='bar')
-  plt.xticks(rotation=25)
-  plt.title(title)
-  plt.show()
-  plt.savefig('saved classes')
-
-def plot_loss(df_stats, plot_train=True, plot_valid=True):
-  sns.set(style='darkgrid') # Use plot styling from seaborn.
-  sns.set(font_scale=1.5) # Increase the plot size.
-  plt.rcParams["figure.figsize"] = (12,6) # Increase the font size.
-  if plot_train: plt.plot(df_stats['Train Loss'], 'b-o', label="Training")
-  if plot_valid: plt.plot(df_stats['Valid Loss'], 'g-o', label="Validation")
-  plt.title("Training & Validation Loss")
-  plt.xlabel("Epoch")
-  plt.ylabel("Loss")
-  plt.legend()
-  plt.xticks([1, 2, 3, 4])
-  plt.show()
-
-
-def evaluate(predictions, true_labels, avg='macro', verbose=True):
-  avgs = ['micro', 'macro', 'weighted', 'samples']
-  if avg not in avgs:
-    raise ValueError("Invalid average type (avg). Expected one of: %s" % avgs)
-
-  # Combine the predictions for each batch into a single list.
-  flat_predictions = [item for sublist in predictions for item in sublist]
-  flat_predictions = np.argmax(flat_predictions, axis=1).flatten()
-
-  # Combine the correct labels for each batch into a single list.
-  flat_true_labels = [item for sublist in true_labels for item in sublist]
-
-  # Compute the results.
-  precision = precision_score(flat_true_labels, flat_predictions, average=avg)
-  recall    = recall_score(flat_true_labels, flat_predictions, average=avg)
-  f1        = f1_score(flat_true_labels, flat_predictions, average=avg)
-  acc       = accuracy_score(flat_true_labels,flat_predictions)
-
-  # Report the results.
-  if verbose:
-    print('Accuracy:        %.4f' % acc)
-    print(avg+' Precision: %.4f' % f1)
-    print(avg+' Recall:    %.4f' % f1)
-    print(avg+' F1 score:  %.4f' % f1, "\n")
-    print(confusion_matrix(flat_true_labels,flat_predictions))
-    #print(classification_report(flat_true_labels, flat_predictions, digits=2, zero_division='warn'))
-
-  return f1, acc
+THRESHOLD = 0.3
 
 def predict(model, dataloader):
   print('Predicting labels for test sentences...')
@@ -96,8 +30,16 @@ def predict(model, dataloader):
     with torch.no_grad(): # do not compute or store gradients to save memory and speed up prediction
       outputs = model(b_input_ids, token_type_ids=None, attention_mask=b_input_mask) # Forward pass, calculate logit predictions
     
+    #print("predict = ", outputs)
+
     logits = outputs[0] # retrieve the model outputs prior to activation
-    logits = logits.detach().cpu().numpy() # Move logits to CPU
+
+    logits = 1 / (1 + np.exp(-logits.detach().cpu().numpy()))
+    logits[logits>THRESHOLD] = 1
+    logits[logits<=THRESHOLD] = 0
+
+
+    #logits = logits.detach().cpu().numpy() # Move logits to CPU
     label_ids = b_labels.to('cpu').numpy() # Move labels to CPU
     
     predictions.append(logits)    # Store predictions
@@ -107,36 +49,11 @@ def predict(model, dataloader):
   return predictions, true_labels
 
 
-  
-def flat_accuracy(preds, labels):
-    """Function to calculate the accuracy of our predictions vs labels"""
-    pred_flat = np.argmax(preds, axis=1).flatten()
-    labels_flat = labels.flatten()
-    return np.sum(pred_flat == labels_flat) / len(labels_flat)
-
-def format_time(elapsed):
-    """Function for formatting elapsed times: Takes a time in seconds and returns a string hh:mm:ss"""
-    elapsed_rounded = int(round((elapsed))) # Round to the nearest second.
-    return str(datetime.timedelta(seconds=elapsed_rounded)) # Format as hh:mm:ss
-
-def print_model_params(my_model):
-  """Function to print all the model's parameters as a list of tuples: (name,dimensions)"""
-  params = list(my_model.named_parameters())
-  print('The BERT model has {:} different named parameters.\n'.format(len(params)))
-  print('==== Embedding Layer ====\n')
-  for p in params[0:5]:
-    print("{:<55} {:>12}".format(p[0], str(tuple(p[1].size()))))
-  print('\n==== First Transformer ====\n')
-  for p in params[5:21]:
-    print("{:<55} {:>12}".format(p[0], str(tuple(p[1].size()))))
-  print('\n==== Output Layer ====\n')
-  for p in params[-4:]:
-    print("{:<55} {:>12}".format(p[0], str(tuple(p[1].size()))))
-
-
+LOAD_FROM_LOCAL = True
   #@title Hyperparameters
 
 SEED = 12345 #@param {type:"raw"}
+
 
 BERT_MODEL = 'multilingual'
 #BERT_MODEL = 'english_base_uncased' #@param ["multilingual", "english_base_cased", "english_large_cased", "english_base_uncased", "english_large_uncased", "finnish_cased", "finnish_uncased", "dutch", "chinese", "german", "arabic", "greek", "turkish"]
@@ -164,6 +81,8 @@ np.random.seed(SEED)
 torch.manual_seed(SEED)
 torch.cuda.manual_seed_all(SEED)
 #pd.set_option('precision', 4)
+NUM_CLASSES = 7
+save_dir = "/nobackup3/wb/xed/"+"english-"+BERT_MODEL
 
 
 models = {
@@ -182,14 +101,6 @@ models = {
     "turkish": ('dbmdz/bert-base-turkish-cased',False)
 }
 
-datasets_olid = {
-    "arabic": "https://github.com/mapama247/TFM/raw/master/ar20a.tsv",
-    "danish":  "https://github.com/mapama247/TFM/raw/master/da20a.tsv",
-    "english": "https://github.com/mapama247/TFM/raw/master/en19a.tsv",
-    "greek":   "https://github.com/mapama247/TFM/raw/master/gr20a.tsv",
-    "turkish": "https://github.com/mapama247/TFM/raw/master/tr20a.tsv"
-}
-
 if torch.cuda.is_available():
     device = torch.device("cuda")
     print('There are %d GPU(s) available.' % torch.cuda.device_count())
@@ -199,7 +110,7 @@ else:
     device = torch.device("cpu")
 
 def convert_to_one_hot_label(labs):
-  one_hot_label = [0] * 7
+  one_hot_label = [0] * NUM_CLASSES
   for l in labs:
     one_hot_label[l] = 1
   return one_hot_label
@@ -232,7 +143,7 @@ def prepare_data(sentences, labels, random_sampling=False):
   return dataloader
 
 
-def train(model, optimizer, scheduler, train_dataloader, dev_dataloader, epochs, verbose=True):
+def train(model, tokenizer, optimizer, scheduler, train_dataloader, dev_dataloader, epochs, verbose=True, save=False):
   total_t0 = time.time() # Measure the total training time for the whole run.
 
   training_stats = [] # training loss, validation loss, validation accuracy and timings.
@@ -262,8 +173,8 @@ def train(model, optimizer, scheduler, train_dataloader, dev_dataloader, epochs,
 
           # Perform a forward pass (evaluate the model on this training batch).
           loss, logits = model(b_input_ids, token_type_ids=None, attention_mask=b_input_mask, labels=b_labels)
-          print(loss)
-          print(logits)
+          #print("Loss = ", loss)
+          #print("Logists shape = ", logits.shape)
           # Accumulate the training loss over all of the batches so that we can calculate the average loss at the end.
           total_train_loss += loss.item()
 
@@ -281,8 +192,8 @@ def train(model, optimizer, scheduler, train_dataloader, dev_dataloader, epochs,
       
       # Measure how long this epoch took.
       training_time = format_time(time.time() - t0)
-      if verbose: print("  Training epcoh took: {:}".format(training_time))
-      """
+      if verbose: print("  Training epoch took: {:}".format(training_time))
+      
       ########## VALIDATION ##########
       t0 = time.time()
       model.eval() # Put the model in evaluation mode--the dropout layers behave differently during evaluation.
@@ -305,7 +216,7 @@ def train(model, optimizer, scheduler, train_dataloader, dev_dataloader, epochs,
 
           logits = logits.detach().cpu().numpy() # Move logits to CPU
           label_ids = b_labels.to('cpu').numpy() # Move labels to CPU
-
+          #print("label shape = ", label_ids.shape)
           total_eval_loss += loss.item() # Accumulate the validation loss.
           total_eval_accuracy += flat_accuracy(logits, label_ids) # Calculate the accuracy for this batch of test sentences, and accumulate it over all batches.
 
@@ -322,11 +233,11 @@ def train(model, optimizer, scheduler, train_dataloader, dev_dataloader, epochs,
       # Measure how long the validation run took.
       validation_time = format_time(time.time() - t0)
       if verbose: print("  Validation took: {:}".format(validation_time))  
-      """
+      
       # Record all statistics from this epoch.
-      avg_val_accuracy = 0
-      avg_val_loss = 0
-      validation_time = 0
+      #avg_val_accuracy = 0
+      #avg_val_loss = 0
+      #validation_time = 0
       training_stats.append(
           {
               'epoch': epoch_i + 1,
@@ -337,7 +248,32 @@ def train(model, optimizer, scheduler, train_dataloader, dev_dataloader, epochs,
               'Valid Time': validation_time
           }
       )
+
+
       
+      if save:
+        # Save model checkpoint
+        output_dir = os.path.join(save_dir, "checkpoint-{}".format(epoch_i+1))
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        model_to_save = (
+            model.module if hasattr(model, "module") else model
+        )
+        model_to_save.save_pretrained(output_dir)
+        tokenizer.save_pretrained(output_dir)
+
+        save_optimizer = True
+        #torch.save(args, os.path.join(output_dir, "training_args.bin"))
+        if save_optimizer:
+            torch.save(optimizer.state_dict(), os.path.join(output_dir, "optimizer.pt"))
+            torch.save(scheduler.state_dict(), os.path.join(output_dir, "scheduler.pt"))
+        
+        statsfile = os.path.join(save_dir,"stats")
+
+        with open(statsfile,"a") as f:
+            f.write(json.dumps(training_stats[-1]))
+            f.write("\n")
+            f.close()
 
   print("\nTraining complete!")
   print("Total training took {:} (h:mm:ss)".format(format_time(time.time()-total_t0)))
@@ -350,7 +286,7 @@ def train(model, optimizer, scheduler, train_dataloader, dev_dataloader, epochs,
 df_dataset = pd.read_csv("AnnotatedData/ekman-en-annotated.tsv", delimiter='\t', header=None, names=['sentence','label']).sample(frac=1, random_state=SEED)
 #df_dataset["label"].replace({8: 0}, inplace=True)
 #NUM_CLASSES = len(df_dataset.groupby('label'))
-NUM_CLASSES = 7
+#NUM_CLASSES = 7
 
 df_train, df_dev, df_test = np.split(df_dataset, [int(PCTG_TRAIN*len(df_dataset)), int((1-PCTG_TEST)*len(df_dataset))])
 
@@ -373,7 +309,7 @@ lowercase = models[BERT_MODEL][1]
 
 config = BertConfig.from_pretrained(
     bert_model,
-    num_labels=7,
+    num_labels=NUM_CLASSES,
 )
 
 model = BertForMultiLabelClassification.from_pretrained(
@@ -394,6 +330,8 @@ tokenizer = BertTokenizer.from_pretrained(bert_model, do_lower_case=lowercase)
 #print(tokenizer.tokenize("lntiaanirenki, juoppo pyssymies, seksihullu ja eno! \U0001F648"))
 
 
+TO_SAVE = True
+
 lengths = []
 for sent in X_train:
   input_ids = tokenizer.encode(sent, add_special_tokens=True)
@@ -410,8 +348,53 @@ adam         = AdamW(model.parameters(), lr=LEARN_RATE, eps=EPSILON)
 total_steps  = len(train_dataloader) * EPOCHS # Total number of training steps is nb_batches times nb_epochs.
 linear_sch   = get_linear_schedule_with_warmup(adam, num_warmup_steps=nb_warmup_steps, num_training_steps=total_steps)
 
-training_stats = train(model=model, optimizer=adam, train_dataloader=train_dataloader, dev_dataloader=dev_dataloader, 
-                       epochs=EPOCHS, verbose=True, scheduler=linear_sch)
+training_stats = train(model=model, tokenizer = tokenizer, optimizer=adam, train_dataloader=train_dataloader, dev_dataloader=dev_dataloader, 
+                       epochs=EPOCHS, verbose=True, scheduler=linear_sch,save = TO_SAVE)
 
 plot_loss(training_stats)
 training_stats
+
+
+
+
+
+# if 5 folds:  20% for testing (1 fold), 70.00% for training and 10.00% for validation
+# if 10 folds: 10% for testing (1 fold), 78.75% for training and 11.25% for validation
+
+print("Performing %d-fold cross-validation,".format(NUM_FOLDS))
+
+if CROSS_VALIDATION:
+  kf = KFold(n_splits=NUM_FOLDS, random_state=SEED, shuffle=True)
+
+  mf1s = []
+  accs = []
+  fold_num = 1
+  for train_index, test_index in kf.split(df_dataset):
+      print("##### Fold number:", fold_num, "#####")
+      fold_num += 1
+      train_df = df_dataset.iloc[train_index]
+      test_df  = df_dataset.iloc[test_index]
+
+      train_df, dev_df = train_test_split(train_df, test_size=0.125) # change percentage (hyperparams?)
+
+      X_train, y_train = train_df.sentence.values, train_df.label.values
+      X_dev, y_dev = dev_df.sentence.values, dev_df.label.values
+      X_test, y_test = test_df.sentence.values, test_df.label.values
+      
+      train_dataloader      = prepare_data(X_train, y_train, 1)
+      dev_dataloader        = prepare_data(X_dev, y_dev, 0)
+      prediction_dataloader = prepare_data(X_test, y_test, 0)
+
+      training_stats = train(model, tokenizer = tokenizer, optimizer=adam, train_dataloader=train_dataloader, dev_dataloader=dev_dataloader, epochs=EPOCHS, verbose=False, scheduler=linear_sch)
+      predictions, true_labels = predict(model, prediction_dataloader)
+      mf1, acc = evaluate(predictions, true_labels, verbose=False)
+      mf1s.append(mf1)
+      accs.append(acc)
+  
+  print("#####################################################################")
+  print("PARAMS: epochs:",EPOCHS,", lr_rate:",LEARN_RATE,"epsilon:",EPSILON,"...")
+  print("#####################################################################")
+  print("F1(CV):",mf1s)
+  print(f"Mean-folds-F1: {sum(mf1s)/len(mf1s)}")
+  print("Acc(CV):",accs)
+  print(f"Mean-folds-Acc: {sum(accs)/len(accs)}")
