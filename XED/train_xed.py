@@ -12,7 +12,7 @@ from model_xed import BertForMultiLabelClassification
 
 from misc import *
 
-THRESHOLD = 0.3
+THRESHOLD = 0.2
 
 def predict(model, dataloader):
   print('Predicting labels for test sentences...')
@@ -55,14 +55,14 @@ LOAD_FROM_LOCAL = True
 SEED = 12345 #@param {type:"raw"}
 
 
-BERT_MODEL = 'multilingual'
+BERT_MODEL = 'finnish_cased'
 #BERT_MODEL = 'english_base_cased' #@param ["multilingual", "english_base_cased", "english_large_cased", "english_base_uncased", "english_large_uncased", "finnish_cased", "finnish_uncased", "dutch", "chinese", "german", "arabic", "greek", "turkish"]
 #DO_PREPROCESSING = False #@param {type:"boolean"}
 #DO_BALANCING = False #@param {type:"boolean"}
 
 EPOCHS = 3 #@param ["2", "3", "4"] {type:"raw"}
 MAX_LEN =  48  #@param ["32", "48", "64", "128", "256", "512"] {type:"raw"}
-BATCH_SIZE = 96 #@param ["128", "96", "64", "32", "16", "8"] {type:"raw"}
+BATCH_SIZE = 32 #@param ["128", "96", "64", "32", "16", "8"] {type:"raw"}
 #BATCH_SIZE = 1
 LEARN_RATE = 2e-5 #@param ["3e-4", "1e-4", "5e-5", "3e-5", "2e-5"] {type:"raw"}
 EPSILON = 1e-8 #@param ["1e-6", "1e-7", "1e-8"] {type:"raw"}
@@ -73,7 +73,7 @@ CROSS_VALIDATION = True #@param {type:"boolean"}
 NUM_FOLDS  = 5 #@param ["3", "5", "10"] {type:"raw"}
 
 CHANGE_SPLIT = True #@param {type:"boolean"}
-PCTG_TRAIN = 0.75 #@param {type:"slider", min:0, max:1, step:0.05}
+PCTG_TRAIN = 0.10 #@param {type:"slider", min:0, max:1, step:0.05}
 PCTG_DEV   = 0.15 #@param {type:"slider", min:0, max:1, step:0.05}
 PCTG_TEST  = 0.1 #@param {type:"slider", min:0, max:1, step:0.05}
 
@@ -83,7 +83,7 @@ torch.manual_seed(SEED)
 torch.cuda.manual_seed_all(SEED)
 #pd.set_option('precision', 4)
 NUM_CLASSES = 7
-save_dir = "/nobackup3/wb/xed/"+"english-"+BERT_MODEL
+save_dir = "/nobackup3/wb/xed/"+"finnish-"+BERT_MODEL
 
 
 models = {
@@ -284,12 +284,14 @@ def train(model, tokenizer, optimizer, scheduler, train_dataloader, dev_dataload
   return df_stats
 
 
-df_dataset = pd.read_csv("AnnotatedData/ekman-fi-annotated.tsv", delimiter='\t', header=None, names=['sentence','label']).sample(frac=1, random_state=SEED)
+df_dataset = pd.read_csv("AnnotatedData/pseudo-multilingual-ekman-fi-annotated.tsv", delimiter='\t', header=None, names=['sentence','label']).sample(frac=1, random_state=SEED)
 #df_dataset["label"].replace({8: 0}, inplace=True)
 #NUM_CLASSES = len(df_dataset.groupby('label'))
 #NUM_CLASSES = 7
 
 df_train, df_dev, df_test = np.split(df_dataset, [int(PCTG_TRAIN*len(df_dataset)), int((1-PCTG_TEST)*len(df_dataset))])
+
+df_test = pd.read_csv("AnnotatedData/ekman-fi-annotated.tsv", delimiter='\t', header=None, names=['sentence','label']).sample(frac=1, random_state=SEED)
 
 X_all = df_dataset.sentence.values
 Y_all = df_dataset.label.values
@@ -313,7 +315,7 @@ lowercase = models[BERT_MODEL][1]
 
 
 #bert_model = save_dir+"/checkpoint-3/"
-print("Loading model : ", bert_model)
+#print("Loading model : ", bert_model)
 config = BertConfig.from_pretrained(
     bert_model,
     num_labels=NUM_CLASSES,
@@ -347,6 +349,7 @@ TO_SAVE = True
 #  l = min(MAX_LEN, len(input_ids))
 #  lengths.append(l)
 
+"""
 all_dataloader      = prepare_data(X_all, Y_all, False)
 predictions, true_labels = predict(model, all_dataloader)
 flat_predictions = [item for sublist in predictions for item in sublist]
@@ -354,9 +357,10 @@ flat_true_labels = [item for sublist in true_labels for item in sublist]
 
 mf1, acc = evaluate(predictions, true_labels, verbose=False)
 print("f1:", mf1, "  acc:",acc)
-sys.exit()
+#sys.exit()
 #print("Predictions shape ",len(flat_predictions) , len(flat_true_labels))
 #print(X_all[0],Y_all[0],flat_predictions[0],flat_true_labels[0])
+
 output_file = "AnnotatedData/pseudo-multilingual-ekman-fi-annotated.tsv"
 print("Writing to output\n")
 with open(output_file,"w", encoding="utf-8") as f:
@@ -366,10 +370,13 @@ with open(output_file,"w", encoding="utf-8") as f:
             if label[index]==1:
                 labs.append(index)
         labstrn = ",".join(str(i) for i in labs)
+        if labstrn is None or len(labstrn)==0:
+            continue
         text = X_all[t]
         f.write(text+'\t'+labstrn+'\n')
 
 sys.exit()
+"""
 
 train_dataloader      = prepare_data(X_train, y_train, True)
 dev_dataloader        = prepare_data(X_dev, y_dev, False)
@@ -386,7 +393,9 @@ training_stats = train(model=model, tokenizer = tokenizer, optimizer=adam, train
 #plot_loss(training_stats)
 training_stats
 
-
+predictions, true_labels = predict(model, prediction_dataloader)
+mf1, acc = evaluate(predictions, true_labels, verbose=False)
+print("f1:", mf1, "  acc:",acc)
 
 
 

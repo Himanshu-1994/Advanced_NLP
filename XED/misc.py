@@ -9,6 +9,7 @@ from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 from sklearn.metrics import classification_report, confusion_matrix, f1_score, precision_score, recall_score, accuracy_score
 from sklearn.utils import resample
 from model_xed import BertForMultiLabelClassification
+from sklearn.metrics import precision_recall_fscore_support, accuracy_score
 
 def plot_lengths_distribution(lengths, title="Length distribution of tokenized sentences"):
   sns.set(style="darkgrid")
@@ -46,6 +47,35 @@ def plot_loss(df_stats, plot_train=True, plot_valid=True):
   plt.xticks([1, 2, 3, 4])
   plt.show()
 
+def generate_pseudo_data(predictions,true_labels,output_file,X_all):
+    print("Writing pseudo labels to output\n")
+    output_file_true = output_file.split(".")[0]+"-truelabel.tsv"
+    pred_lab_data = []
+    true_lab_data = []
+
+    for t, label in enumerate(predictions):
+        labs = []
+        for index in range(len(label)):
+            if label[index]==1:
+                labs.append(index)
+
+        labstrn = ",".join(str(i) for i in labs)
+    
+        if labstrn is None or len(labstrn)==0:
+            continue
+    
+        text = X_all[t]
+        pred_lab_data.append(text+"\t"+labstrn+"\n")
+        true_lab_data.append(text+"\t"+true_labels[t]+"\n")
+
+    with open(output_file,"w", encoding="utf-8") as f:
+        for line in pred_lab_data:
+            f.write(line)
+
+    with open(output_file_true,"w", encoding="utf-8") as f:
+        for line in true_lab_data:
+            f.write(line)
+
 
 def evaluate(predictions, true_labels, avg='macro', verbose=True):
   avgs = ['micro', 'macro', 'weighted', 'samples']
@@ -71,7 +101,7 @@ def evaluate(predictions, true_labels, avg='macro', verbose=True):
     print(avg+' Precision: %.4f' % f1)
     print(avg+' Recall:    %.4f' % f1)
     print(avg+' F1 score:  %.4f' % f1, "\n")
-    print(confusion_matrix(flat_true_labels,flat_predictions))
+    #print(confusion_matrix(flat_true_labels,flat_predictions))
     #print(classification_report(flat_true_labels, flat_predictions, digits=2, zero_division='warn'))
 
   return f1, acc
@@ -119,3 +149,22 @@ def print_model_params(my_model):
   print('\n==== Output Layer ====\n')
   for p in params[-4:]:
     print("{:<55} {:>12}".format(p[0], str(tuple(p[1].size()))))
+
+
+
+def compute_metrics(labels, preds):
+    assert len(preds) == len(labels)
+    results = dict()
+
+    results["accuracy"] = accuracy_score(labels, preds)
+    results["macro_precision"], results["macro_recall"], results[
+        "macro_f1"], _ = precision_recall_fscore_support(
+        labels, preds, average="macro")
+    results["micro_precision"], results["micro_recall"], results[
+        "micro_f1"], _ = precision_recall_fscore_support(
+        labels, preds, average="micro")
+    results["weighted_precision"], results["weighted_recall"], results[
+        "weighted_f1"], _ = precision_recall_fscore_support(
+        labels, preds, average="weighted")
+
+    return results
