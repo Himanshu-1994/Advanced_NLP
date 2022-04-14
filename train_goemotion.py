@@ -480,11 +480,7 @@ def get_args():
     parser.add_argument("--use_gpu", type=bool, default=True)
     parser.add_argument("--language", type=str, default="goemotions")
 
-    # hyper parameters
-    parser.add_argument("--BERT_MODEL", type=str, help="multilingual , english_base_cased , english_large_cased , english_base_uncased, english_large_uncased, finnish_cased, finnish_uncased",
-                     default="multilingual")
-
-    parser.add_argument("--use_pretrained",  type=bool, default=True)
+    parser.add_argument("--use_pretrained",  type=bool, default=False)
     parser.add_argument("--pretrained_path",  type=str, default="/nobackup3/wb/xed/goemotions-ekman/checkpoint-10")
     parser.add_argument("--annotated_file", type=str, default="AnnotatedData/pseudo-multilingual-ekman-fi-annotated.tsv")
 
