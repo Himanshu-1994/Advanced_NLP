@@ -1,8 +1,9 @@
 # Advanced_NLP
 
-##To Train (and Test) the model on GoEmotions dataset
+## To Train (and Test) the model on GoEmotions dataset
 
-DataSplits
+## DataSplits
+
 ### 1. Original
 python train_goemotion.py --task=train --type=original 
 ### 2. Ekman
