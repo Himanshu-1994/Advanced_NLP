@@ -11,6 +11,33 @@ from sklearn.utils import resample
 from model import BertClassifier
 from attrdict import AttrDict
 from sklearn.metrics import precision_recall_fscore_support, accuracy_score
+from sklearn.metrics import confusion_matrix
+
+def plotconf(mat):
+    df_cm = pd.DataFrame(mat, index = [i for i in ['anger','disgust','fear','joy','neutral','sadness','surprise']],
+                  columns = [i for i in ['anger','disgust','fear','joy','neutral','sadness','surprise']])
+    plt.figure(figsize = (10,7))
+    sns.heatmap(df_cm, annot=True)
+    plt.savefig('conf_mat')
+    return
+
+def process_conf(flat_true_labels,flat_predictions):
+
+    true_lab = []
+    pred_lab = []
+    for i in range(len(flat_true_labels)):
+        l1 = np.argmax(flat_true_labels[i])
+        l2 = np.argmax(flat_predictions[i])
+        true_lab.append(l1)
+        pred_lab.append(l2)
+        """
+        for j in range(len(flat_true_labels[i])):
+            if flat_true_labels[i][j]==1:
+                true_lab.append(j)
+            if flat_predictions[i][j]==1:
+                pred_lab.append(j)
+        """
+    return true_lab,pred_lab
 
 def compute_metrics(labels_all, preds_all):
     assert len(preds_all) == len(labels_all)
@@ -352,8 +379,8 @@ def run(args):
     #dev_path = "data/"+args.type+"/dev.tsv"
     dev_path = "XED/AnnotatedData/ekman/ekman-en-annotated_test.tsv"
 
-    #test_path = "data/"+args.type+"/test.tsv"
-    test_path = "XED/AnnotatedData/ekman/ekman-en-annotated_test.tsv"
+    test_path = "data/"+args.type+"/test.tsv"
+    #test_path = "XED/AnnotatedData/ekman/ekman-en-annotated_test.tsv"
 
     df_train = pd.read_csv(train_path, delimiter='\t', header=None, names=['sentence','label','extra']).sample(frac=1, random_state=args.SEED)
     df_dev = pd.read_csv(dev_path, delimiter='\t', header=None, names=['sentence','label','extra']).sample(frac=1, random_state=args.SEED)
@@ -401,7 +428,8 @@ def run(args):
         model.eval()
 
         results = []
-        for i in range(10):
+        for i in [9]:
+        #for i in range(10):
             
             model_path = os.path.join(args.save_dir,"checkpoint-"+str(i+1))
             model = BertClassifier.from_pretrained(
@@ -415,14 +443,19 @@ def run(args):
             result = compute_metrics(flat_predictions, flat_true_labels)
             results.append(result)
 
-        resultfile = os.path.join(args.save_dir,"results_xed_ekman-en_zeroshot")
-        with open(resultfile,"w") as f:
-            for i,stat in enumerate(results):
-                f.write(json.dumps(stat))
-                f.write("\n")
+            flat_true_labels,flat_predictions = process_conf(flat_true_labels,flat_predictions)
+            mat = confusion_matrix(flat_true_labels, flat_predictions,normalize='true')
+            np.save("confmat",mat)
+            plotconf(mat)
+
+        #resultfile = os.path.join(args.save_dir,"results_xed_ekman-en_zeroshot")
+        #with open(resultfile,"w") as f:
+        #    for i,stat in enumerate(results):
+        #        f.write(json.dumps(stat))
+        #        f.write("\n")
 
 
-def set_seeds(seed=12345):
+def set_seeds(seed=15):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -434,8 +467,8 @@ def set_seeds(seed=12345):
 def get_args():
     parser = argparse.ArgumentParser()
     
-    parser.add_argument("--type", type=str, default="bert")
-    parser.add_argument("--task", type=str, default="train")
+    parser.add_argument("--type", type=str, default="ekman")
+    parser.add_argument("--task", type=str, default="test")
 
     parser.add_argument("--save_dir", type=str, default="/nobackup3/wb/xed/")
     parser.add_argument("--data_path", type=str, default="AnnotatedData/pseudo-multilingual-ekman-fi-annotated.tsv")
@@ -445,14 +478,14 @@ def get_args():
     parser.add_argument("--SEED", type=int, default=42)
     parser.add_argument("--EPOCHS", type=int, default=10)
     parser.add_argument("--use_gpu", type=bool, default=True)
-    parser.add_argument("--language", type=str, default="xed_bertbasecased_finetune_on-dev")
+    parser.add_argument("--language", type=str, default="goemotions")
 
     # hyper parameters
     parser.add_argument("--BERT_MODEL", type=str, help="multilingual , english_base_cased , english_large_cased , english_base_uncased, english_large_uncased, finnish_cased, finnish_uncased",
                      default="multilingual")
 
-    parser.add_argument("--use_pretrained",  type=bool, default=False)
-    parser.add_argument("--pretrained_path",  type=str, default="/nobackup3/wb/xed/goemotions-original/checkpoint-10")
+    parser.add_argument("--use_pretrained",  type=bool, default=True)
+    parser.add_argument("--pretrained_path",  type=str, default="/nobackup3/wb/xed/goemotions-ekman/checkpoint-10")
     parser.add_argument("--annotated_file", type=str, default="AnnotatedData/pseudo-multilingual-ekman-fi-annotated.tsv")
 
     parser.add_argument("--THRESHOLD",  type=int, default=0.3)
