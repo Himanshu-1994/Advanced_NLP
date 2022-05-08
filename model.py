@@ -1,6 +1,7 @@
+import torch
 import torch.nn as nn
 from transformers import BertPreTrainedModel, BertModel
-
+import numpy as np
 
 class BertClassifier(BertPreTrainedModel):
     def __init__(self, config):
@@ -10,6 +11,8 @@ class BertClassifier(BertPreTrainedModel):
         self.bert = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, self.config.num_labels)
+        #self.pos_weight = torch.tensor(np.load("ratios.npy"))
+        #self.loss_fct = nn.BCEWithLogitsLoss(pos_weight=self.pos_weight)
         self.loss_fct = nn.BCEWithLogitsLoss()
 
         self.init_weights()
