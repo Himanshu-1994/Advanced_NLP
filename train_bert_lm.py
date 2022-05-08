@@ -1,7 +1,7 @@
 import sys, os, csv, json, time, datetime, random, torch, argparse
 #cache_dir = 'tmp'
-cache_dir = '/nobackup3/himanshu/cache/'
-os.environ['TRANSFORMERS_CACHE'] = cache_dir
+#cache_dir = '/nobackup3/himanshu/cache/'
+#os.environ['TRANSFORMERS_CACHE'] = cache_dir
 import numpy as np
 import pandas as pd
 import seaborn as sns

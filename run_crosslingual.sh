@@ -1,5 +1,5 @@
 # Set the save directory to where you want to save the models
-SAVE_PATH='/nobackup3/himanshu/xed/outputs'
+SAVE_PATH='outputs'
 
 echo "Finetune multilingual-BERT Model on English data"
 python bert.py \

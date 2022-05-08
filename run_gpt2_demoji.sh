@@ -1,5 +1,5 @@
 # Set the save directory to where you want to save the models
-SAVE_PATH='/nobackup3/himanshu/xed/outputs'
+SAVE_PATH='outputs'
 
 echo "Train GPT2 Model with Emoji removal"
 python gpt2.py \

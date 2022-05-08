@@ -1,5 +1,5 @@
 # Set the save directory to where you want to save the models
-SAVE_PATH='/nobackup3/himanshu/xed/outputs'
+SAVE_PATH='outputs'
 
 echo "Train t5 Model"
 python t5.py \

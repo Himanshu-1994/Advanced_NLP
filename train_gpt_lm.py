@@ -1,6 +1,6 @@
 import sys, os, csv, json, time, datetime, random, torch, argparse
 
-os.environ['TRANSFORMERS_CACHE'] = '/nobackup3/himanshu/cache/'
+#os.environ['TRANSFORMERS_CACHE'] = '/nobackup3/himanshu/cache/'
 
 import numpy as np
 import pandas as pd

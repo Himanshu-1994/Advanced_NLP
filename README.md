@@ -4,7 +4,7 @@ as part of Advanced Natural Language Processing Course (CS769) UWMadison.
 
 ## Run instructions:
 
-1. Create a virtual environment and install the libraries given in *min_requirements.txt*
+1. Create a virtual environment and install *torch* and the libraries given in *min_requirements.txt*
     
     ```
     $ python3 -m venv /path/to/new/virtual/environment
@@ -47,7 +47,7 @@ as part of Advanced Natural Language Processing Course (CS769) UWMadison.
   For example to train the **GPT-2** model with **PEGASUS** data augmentation
   
     ```
-    export SAVE_PATH='/nobackup3/himanshu/xed/outputs'
+    export SAVE_PATH='/nobackup3/himanshu/outputs'
     python gpt2.py \
         --SEED=100 \
         --save_dir=${SAVE_PATH} \
