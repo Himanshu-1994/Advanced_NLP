@@ -19,6 +19,6 @@ for emoji in emoji_dict:
     emoji_list.append(":"+emoji_dict[emoji]+":")
 
 with open("emoji_tokens.pkl",'wb') as f:
-    pickle.dump(emoji_dict,f)
+    pickle.dump(emoji_list,f)
 
 
