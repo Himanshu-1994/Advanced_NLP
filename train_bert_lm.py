@@ -375,8 +375,11 @@ def set_seeds(seed=15):
 
 def get_args():
     parser = argparse.ArgumentParser()
-
-   parser.add_argument("--type", type=str, default="original")
+    
+def get_args():
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument("--type", type=str, default="original")
     parser.add_argument("--task", type=str, default="train")
     parser.add_argument("--arch", type=str, default="bert")
     parser.add_argument("--freeze", type=bool, default=False)
@@ -385,10 +388,9 @@ def get_args():
 
     parser.add_argument("--save_dir", type=str, default="/nobackup3/wb/xed/")
     parser.add_argument("--suff", type=str, default="")    
-    parser.add_argument("--train_path", type=str, default="XED/AnnotatedData/ekman-fi-annotated.tsv")
-    parser.add_argument("--test_path", type=str, default="XED/AnnotatedData/ekman-fi-annotated.tsv")
-    parser.add_argument("--dev_path", type=str, default="XED/AnnotatedData/ekman-fi-annotated.tsv")
-
+    parser.add_argument("--train_path", type=str, default="")
+    parser.add_argument("--test_path", type=str, default="")
+    parser.add_argument("--dev_path", type=str, default="")
     parser.add_argument("--label_file", type=str, default="")
 
 
@@ -412,18 +414,6 @@ def get_args():
     parser.add_argument("--NUM_CLASSES",  type=int, default=7)
     parser.add_argument("--save",  type=bool, default=True)
     parser.add_argument("--verbose",  type=bool, default=True)
-
-
-
-    parser.add_argument("--type", type=str, default="original")
-    parser.add_argument("--task", type=str, default="train")
-    parser.add_argument("--arch", type=str, default="finnish_cased")
-
-    parser.add_argument("--save_dir", type=str, default="/nobackup3/himanshu/xed/")
-    parser.add_argument("--suff", type=str, default="")
-    
-    parser.add_argument("--use_pretrained",  type=bool, default=False)
-    parser.add_argument("--pretrained_path",  type=str, default="/nobackup3/wb/xed/goemotions-ekman/checkpoint-10")
 
     args = parser.parse_args()
     print(f"args: {vars(args)}")

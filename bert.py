@@ -460,12 +460,14 @@ def run(args):
             reports.append(report)
             
             if args.gen_labels==True:
-                output_file = os.path.join(args.save_dir,"pseudo_labels_finnish_test")
+                output_file = os.path.join("data/AnnotatedData/pseudo_labels_finnish_test_clean.tsv")
                 writer = open(output_file, 'w')
                 for i in range(len(X_test)):
                     sentence = X_test[i]
                     labs = [str(t) for t in range(len(flat_predictions[i])) if flat_predictions[i][t]==1]
                     final_labs = ",".join(labs)
+                    if len(labs)==0 or final_labs=="":
+                        continue
                     writer.write(sentence + "\t" + final_labs + '\n')
                 writer.close()
 
