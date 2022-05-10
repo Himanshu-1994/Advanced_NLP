@@ -57,6 +57,13 @@ as part of Advanced Natural Language Processing Course (CS769) UWMadison.
         --test_path=data/original/test.tsv
     ```
 
+- To train and test the model on ekman split of GoEmotions.
+
+    `$ sh run_gpt2_demoji_ekman.sh`
+
+- To train and test the model on group split of GoEmotions.
+
+    `$ sh run_gpt2_demoji_grouped.sh`
 
 ## Data Augmentation
 
